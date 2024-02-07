@@ -1,0 +1,19 @@
+name: Lint templates
+
+on:
+  workflow_call:
+
+jobs:
+  build-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
+      - name: Install dev dependencies
+        run: pip install cfn-lint
+      - name: Lint templates
+        run: cfn-lint template.yml

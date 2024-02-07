@@ -1,0 +1,388 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: Imgproxy running on AWS Lambda
+
+Parameters:
+  FunctionName:
+    Type: String
+    Description: A name for the function. If you don't specify a name, stack name is used.
+  ImageUri:
+    Type: String
+    Description: >-
+      The URI of the Docker image to use for the function.
+      The image must be in an Amazon Elastic Container Registry (Amazon ECR) repository.
+  MemorySize:
+    Type: Number
+    Description: >-
+      Amount of memory in megabytes to give to the function.
+      AWS Lambda will allocate CPU power linearly in proportion to the amount of memory configured,
+      so it's recommended to allocate at least 2048 MB of memory to the function.
+    Default: 2048
+    MinValue: 1024
+    MaxValue: 10240
+  Timeout:
+    Type: Number
+    Description: The amount of time in seconds that Lambda allows a function to run before stopping it.
+    Default: 60
+    MinValue: 1
+    MaxValue: 60
+  EnvironmentSecretARN:
+    Type: String
+    Description: >-
+      ARN of an AWS Secrets Manager secret containing environment variables.
+      See https://docs.imgproxy.net/latest/configuration/loading_environment_variables#environment-file-syntax for the secret syntax.
+      See https://docs.imgproxy.net/configuration for supported environment variables
+    Default: ''
+  EnvironmentSecretVersionID:
+    Type: String
+    Description: >-
+      Version ID of the AWS Secrets Manager secret containing environment variables.
+      If not set, the latest version is used
+    Default: ''
+  EnvironmentSystemsManagerParametersPath:
+    Type: String
+    Description: >-
+      A path of AWS Systems Manager Parameter Store parameters containing the environment variables.
+      The path should start with a slash (/) but should not have a slash (/) at the end.
+      See https://docs.imgproxy.net/latest/configuration/loading_environment_variables#aws-systems-manager-path
+      to learn how imgproxy maps AWS Systems Manager Parameter Store parameters to environment variables.
+      See https://docs.imgproxy.net/configuration for supported environment variables
+    Default: ''
+  S3Objects:
+    Type: CommaDelimitedList
+    Description: >-
+      ARNs of S3 objects (comma delimited) that imgproxy should have access to.
+      You can grant access to multiple objects with a single ARN by using wildcards.
+      Example: arn:aws:s3:::my-images-bucket/*,arn:aws:s3:::my-assets-bucket/images/*
+    Default: ''
+  S3AssumeRoleARN:
+    Type: String
+    Description: >-
+      ARN of IAM Role that S3 client should assume.
+      This allows you to provide imgproxy access to third-party S3 buckets that the assummed IAM Role has access to
+    Default: ''
+  S3MultiRegion:
+    Type: String
+    Description: >-
+      Should imgproxy be able to access S3 buckets in other regions?
+      By default, imgproxy can access only S3 buckets located in the same region as imgproxy
+    Default: 'No'
+    AllowedValues:
+      - 'Yes'
+      - 'No'
+  S3ClientSideDecryption:
+    Type: String
+    Description: >-
+      Should imgproxy use S3 decryption client?
+      The decription client will be used forall objects in all S3 buckets, so unecrypted objects won't be accessable
+    Default: 'No'
+    AllowedValues:
+      - 'Yes'
+      - 'No'
+  PathPrefix:
+    Type: String
+    Description: Path prefix, beginning with a slash (/).Do not add a slash (/) at the end of the path
+    Default: ''
+  CreateCloudFrontDistribution:
+    Type: String
+    Description: >-
+      Should caching CloudFront distribution be created?
+    Default: 'Yes'
+    AllowedValues:
+      - 'Yes'
+      - 'No'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Lambda Function
+        Parameters:
+          - FunctionName
+          - ImageUri
+          - MemorySize
+          - Timeout
+      - Label:
+          default: Load environment from an AWS Secrets Manager secret
+        Parameters:
+          - EnvironmentSecretARN
+          - EnvironmentSecretVersionID
+      - Label:
+          default: Load environment from AWS Systems Manager Parameter Store
+        Parameters:
+          - EnvironmentSystemsManagerParametersPath
+      - Label:
+          default: S3 integration
+        Parameters:
+          - S3Objects
+          - S3AssumeRoleARN
+          - S3MultiRegion
+          - S3ClientSideDecryption
+      - Label:
+          default: Endpoint
+        Parameters:
+          - PathPrefix
+          - CreateCloudFrontDistribution
+    ParameterLabels:
+      FunctionName:
+        default: Function name
+      ImageUri:
+        default: Docker image
+      MemorySize:
+        default: Memory size
+      Timeout:
+        default: Timeout
+      EnvironmentSecretARN:
+        default: Secrets Manager secret ARN (optional)
+      EnvironmentSecretVersionID:
+        default: Secrets Manager secret version ID (optional)
+      EnvironmentSystemsManagerParametersPath:
+        default: Systems Manager Parameter Store parameters path (optional)
+      S3Objects:
+        default: S3 objects (optional)
+      S3AssumeRoleARN:
+        default: IAM Role ARN to assume (optional)
+      S3MultiRegion:
+        default: Enable multi-region mode
+      S3ClientSideDecryption:
+        default: Enable client-side decryption
+      PathPrefix:
+        default: Path prefix (optional)
+      CreateCloudFrontDistribution:
+        default: Create CloudForont distribution?
+
+Conditions:
+  HaveFunctionName: !Not
+    - !Equals
+      - !Ref 'FunctionName'
+      - ''
+  HaveEnvironmentSecretArn: !Not
+    - !Equals
+      - !Ref 'EnvironmentSecretARN'
+      - ''
+  HaveEnvironmentSystemsManagerParametersPath: !Not
+    - !Equals
+      - !Ref 'EnvironmentSystemsManagerParametersPath'
+      - ''
+  HaveS3Objects: !Not
+    - !Equals
+      - !Join
+        - ''
+        - !Ref 'S3Objects'
+      - ''
+  HaveS3AssumeRole: !Not
+    - !Equals
+      - !Ref 'S3AssumeRoleARN'
+      - ''
+  EnableS3MultiRegion: !Equals
+    - !Ref 'S3MultiRegion'
+    - 'Yes'
+  EnableS3ClientSideDecryption: !Equals
+    - !Ref 'S3ClientSideDecryption'
+    - 'Yes'
+  HavePathPrefix: !Not
+    - !Equals
+      - !Ref 'PathPrefix'
+      - ''
+  DeployCloudFront: !Equals
+    - !Ref 'CreateCloudFrontDistribution'
+    - 'Yes'
+
+Resources:
+  ImgproxyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Architectures: [arm64]
+      FunctionName: !If
+        - HaveFunctionName
+        - !Ref 'FunctionName'
+        - !Ref 'AWS::StackName'
+      PackageType: Image
+      ImageUri: !Ref ImageUri
+      MemorySize: !Ref MemorySize
+      Timeout: !Ref Timeout
+      Environment:
+        Variables:
+          PORT: '8080'
+          IMGPROXY_LOG_FORMAT: json
+          IMGPROXY_ENV_AWS_SECRET_ID: !If
+            - HaveEnvironmentSecretArn
+            - !Ref 'EnvironmentSecretARN'
+            - !Ref 'AWS::NoValue'
+          IMGPROXY_ENV_AWS_SECRET_VERSION_ID: !If
+            - HaveEnvironmentSecretArn
+            - !Ref 'EnvironmentSecretVersionID'
+            - !Ref 'AWS::NoValue'
+          IMGPROXY_ENV_AWS_SSM_PARAMETERS_PATH: !If
+            - HaveEnvironmentSystemsManagerParametersPath
+            - !Ref 'EnvironmentSystemsManagerParametersPath'
+            - !Ref 'AWS::NoValue'
+          IMGPROXY_USE_S3: '1'
+          IMGPROXY_S3_ASSUME_ROLE_ARN: !If
+            - HaveS3AssumeRole
+            - !Ref 'S3AssumeRoleARN'
+            - !Ref 'AWS::NoValue'
+          IMGPROXY_S3_MULTI_REGION: !If
+            - EnableS3MultiRegion
+            - '1'
+            - !Ref 'AWS::NoValue'
+          IMGPROXY_S3_USE_DECRYPTION_CLIENT: !If
+            - EnableS3ClientSideDecryption
+            - '1'
+            - !Ref 'AWS::NoValue'
+          IMGPROXY_PATH_PREFIX: !If
+            - HavePathPrefix
+            - !Ref 'PathPrefix'
+            - !Ref 'AWS::NoValue'
+          IMGPROXY_CLOUD_WATCH_SERVICE_NAME: !If
+            - HaveFunctionName
+            - !Ref 'FunctionName'
+            - !Ref 'AWS::StackName'
+          IMGPROXY_CLOUD_WATCH_NAMESPACE: imgproxy
+          IMGPROXY_CLOUD_WATCH_REGION: !Ref 'AWS::Region'
+
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode:  RESPONSE_STREAM
+      LoggingConfig:
+        LogFormat: JSON
+      Policies:
+        - Statement:
+          - Sid: CloudWatch
+            Effect: Allow
+            Action:
+              - cloudwatch:PutMetricData
+              - cloudwatch:PutMetricStream
+            Resource:
+              - '*'
+          - Sid: AwsMarketplace
+            Effect: Allow
+            Action:
+              - aws-marketplace:MeterUsage
+            Resource:
+              - '*'
+          - !If
+            - HaveEnvironmentSecretArn
+            - Sid: SecretsManagerAccess
+              Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+                - secretsmanager:ListSecretVersionIds
+              Resource:
+                - !Ref 'EnvironmentSecretARN'
+            - !Ref 'AWS::NoValue'
+          - !If
+            - HaveEnvironmentSystemsManagerParametersPath
+            - Sid: SystemsManagerAccess
+              Effect: Allow
+              Action:
+                - ssm:GetParametersByPath
+              Resource:
+                - !Join
+                  - ''
+                  - - 'arn:aws:ssm:'
+                    - !Ref 'AWS::Region'
+                    - ':'
+                    - !Ref 'AWS::AccountId'
+                    - :parameter
+                    - !Ref 'EnvironmentSystemsManagerParametersPath'
+            - !Ref 'AWS::NoValue'
+          - !If
+            - HaveS3Objects
+            - Sid: S3Access
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:GetObjectVersion
+              Resource: !Ref 'S3Objects'
+            - !Ref 'AWS::NoValue'
+          - !If
+            - HaveS3AssumeRole
+            - Sid: IAMRoleAssume
+              Effect: Allow
+              Action:
+                - sts:AssumeRole
+              Resource: !Ref 'S3AssumeRoleARN'
+            - !Ref 'AWS::NoValue'
+          - !If
+            - EnableS3ClientSideDecryption
+            - Sid: KMSDecrypt
+              Effect: Allow
+              Action:
+                - kms:Decrypt
+              Resource: !Join
+                - ':'
+                - - arn:aws:kms:*
+                  - !Ref 'AWS::AccountId'
+                  - key/*
+            - !Ref 'AWS::NoValue'
+      Tracing: Active
+
+  CloudFrontCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Condition: DeployCloudFront
+    Properties:
+      CachePolicyConfig:
+        Name: !Join
+          - '-'
+          - - !Ref 'AWS::StackName'
+            - cache-policy
+        DefaultTTL: 31536000
+        MaxTTL: 31536000
+        MinTTL: 1
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: none
+          EnableAcceptEncodingBrotli: false
+          EnableAcceptEncodingGzip: false
+          HeadersConfig:
+            HeaderBehavior: whitelist
+            Headers:
+              - Accept
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Condition: DeployCloudFront
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Origins:
+          - DomainName: !Select
+              - 2
+              - !Split ['/', !GetAtt 'ImgproxyFunctionUrl.FunctionUrl']
+            Id: !Join
+              - '-'
+              - - !Ref 'AWS::StackName'
+                - origin
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginReadTimeout: !Ref 'Timeout'
+            OriginPath: !Ref 'PathPrefix'
+            OriginShield:
+              Enabled: true
+              OriginShieldRegion: !Ref 'AWS::Region'
+        DefaultCacheBehavior:
+          TargetOriginId: !Join
+            - '-'
+            - - !Ref 'AWS::StackName'
+              - origin
+          CachePolicyId: !Ref 'CloudFrontCachePolicy'
+          ViewerProtocolPolicy: redirect-to-https
+        PriceClass: PriceClass_All
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+Outputs:
+  FunctionArn:
+    Description: The ARN of the function
+    Value: !GetAtt 'ImgproxyFunction.Arn'
+  DirectURL:
+    Description: The direct URL endpoint for imgproxy
+    Value: !GetAtt 'ImgproxyFunctionUrl.FunctionUrl'
+  CloudFrontURL:
+    Description: The CloudFront endpoint for imgproxy
+    Value: !GetAtt 'CloudFrontDistribution.DomainName'
+    Condition: DeployCloudFront
