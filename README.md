@@ -32,7 +32,7 @@ This repository contains an [AWS Serverless Application Model (SAM)](https://doc
 
 We uploaded the template to our S3 bucket so you can use by a click of a button. The links below will take you to the AWS CloudFormation console with the template pre-filled. You just need to provide the required parameters and click **Create stack**.
 
-[![](assets/launch-stack.svg)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=imgproxy&templateURL=https://imgproxy-cf.s3.amazonaws.com/sam/latest/template.yml)
+[![](assets/launch-stack.svg)](https://console.aws.amazon.com/cloudformation/home#/stacks/create/review?stackName=imgproxy&templateURL=https://imgproxy-cf.s3.amazonaws.com/sam/latest/template.yml)
 
 > [!NOTE]
 > The link in the README points to the template from the `master` branch. If you want to use a specific version, you can find the links in the [releases](https://github.com/imgproxy/imgproxy-aws-sam/releases) section.
