@@ -27,27 +27,14 @@ Parameters:
     Default: 60
     MinValue: 1
     MaxValue: 60
-  EnvironmentSecretARN:
-    Type: String
-    Description: >-
-      ARN of an AWS Secrets Manager secret containing environment variables.
-      See https://docs.imgproxy.net/latest/configuration/loading_environment_variables#environment-file-syntax for the secret syntax.
-      See https://docs.imgproxy.net/configuration for supported environment variables
-    Default: ''
-  EnvironmentSecretVersionID:
-    Type: String
-    Description: >-
-      Version ID of the AWS Secrets Manager secret containing environment variables.
-      If not set, the latest version is used
-    Default: ''
   EnvironmentSystemsManagerParametersPath:
     Type: String
     Description: >-
-      A path of AWS Systems Manager Parameter Store parameters containing the environment variables.
-      The path should start with a slash (/) but should not have a slash (/) at the end.
-      See https://docs.imgproxy.net/latest/configuration/loading_environment_variables#aws-systems-manager-path
-      to learn how imgproxy maps AWS Systems Manager Parameter Store parameters to environment variables.
-      See https://docs.imgproxy.net/configuration for supported environment variables
+      A path of AWS Systems Manager Parameter Store parameters that should be loaded as environment
+      variables. The path should start with a slash (/) but should not have a slash (/) at the end.
+      For example, if you want to load the IMGPROXY_KEY variable from the /imgproxy/prod/IMGPROXY_KEY
+      parameter, the value should be /imgproxy/prod. If not set, imgproxy will load environment
+      variables from the /${StackName} path.
     Default: ''
   S3Objects:
     Type: CommaDelimitedList
@@ -104,12 +91,7 @@ Metadata:
           - MemorySize
           - Timeout
       - Label:
-          default: Load environment from an AWS Secrets Manager secret
-        Parameters:
-          - EnvironmentSecretARN
-          - EnvironmentSecretVersionID
-      - Label:
-          default: Load environment from AWS Systems Manager Parameter Store
+          default: imgproxy Configuration
         Parameters:
           - EnvironmentSystemsManagerParametersPath
       - Label:
@@ -133,10 +115,6 @@ Metadata:
         default: Memory size
       Timeout:
         default: Timeout
-      EnvironmentSecretARN:
-        default: Secrets Manager secret ARN (optional)
-      EnvironmentSecretVersionID:
-        default: Secrets Manager secret version ID (optional)
       EnvironmentSystemsManagerParametersPath:
         default: Systems Manager Parameter Store parameters path (optional)
       S3Objects:
@@ -156,10 +134,6 @@ Conditions:
   HaveFunctionName: !Not
     - !Equals
       - !Ref 'FunctionName'
-      - ''
-  HaveEnvironmentSecretArn: !Not
-    - !Equals
-      - !Ref 'EnvironmentSecretARN'
       - ''
   HaveEnvironmentSystemsManagerParametersPath: !Not
     - !Equals
@@ -206,18 +180,13 @@ Resources:
         Variables:
           PORT: '8080'
           IMGPROXY_LOG_FORMAT: json
-          IMGPROXY_ENV_AWS_SECRET_ID: !If
-            - HaveEnvironmentSecretArn
-            - !Ref 'EnvironmentSecretARN'
-            - !Ref 'AWS::NoValue'
-          IMGPROXY_ENV_AWS_SECRET_VERSION_ID: !If
-            - HaveEnvironmentSecretArn
-            - !Ref 'EnvironmentSecretVersionID'
-            - !Ref 'AWS::NoValue'
           IMGPROXY_ENV_AWS_SSM_PARAMETERS_PATH: !If
             - HaveEnvironmentSystemsManagerParametersPath
             - !Ref 'EnvironmentSystemsManagerParametersPath'
-            - !Ref 'AWS::NoValue'
+            - !Join
+              - ''
+              - - /
+                - !Ref 'AWS::StackName'
           IMGPROXY_USE_S3: '1'
           IMGPROXY_S3_ASSUME_ROLE_ARN: !If
             - HaveS3AssumeRole
@@ -262,32 +231,25 @@ Resources:
               - aws-marketplace:MeterUsage
             Resource:
               - '*'
-          - !If
-            - HaveEnvironmentSecretArn
-            - Sid: SecretsManagerAccess
-              Effect: Allow
-              Action:
-                - secretsmanager:GetSecretValue
-                - secretsmanager:ListSecretVersionIds
-              Resource:
-                - !Ref 'EnvironmentSecretARN'
-            - !Ref 'AWS::NoValue'
-          - !If
-            - HaveEnvironmentSystemsManagerParametersPath
-            - Sid: SystemsManagerAccess
-              Effect: Allow
-              Action:
-                - ssm:GetParametersByPath
-              Resource:
-                - !Join
-                  - ''
-                  - - 'arn:aws:ssm:'
-                    - !Ref 'AWS::Region'
-                    - ':'
-                    - !Ref 'AWS::AccountId'
-                    - :parameter
+          - Sid: SystemsManagerAccess
+            Effect: Allow
+            Action:
+              - ssm:GetParametersByPath
+            Resource:
+              - !Join
+                - ''
+                - - 'arn:aws:ssm:'
+                  - !Ref 'AWS::Region'
+                  - ':'
+                  - !Ref 'AWS::AccountId'
+                  - :parameter
+                  - !If
+                    - HaveEnvironmentSystemsManagerParametersPath
                     - !Ref 'EnvironmentSystemsManagerParametersPath'
-            - !Ref 'AWS::NoValue'
+                    - !Join
+                      - ''
+                      - - /
+                        - !Ref 'AWS::StackName'
           - !If
             - HaveS3Objects
             - Sid: S3Access
@@ -386,3 +348,29 @@ Outputs:
     Description: The CloudFront endpoint for imgproxy
     Value: !GetAtt 'CloudFrontDistribution.DomainName'
     Condition: DeployCloudFront
+  HowToConfigure:
+    Description: How to configure imgproxy
+    Value: !Join
+      - ''
+      - - 'imgproxy loads AWS Systems Manager Parameter Store parameters from the path '
+        - !If
+          - HaveEnvironmentSystemsManagerParametersPath
+          - !Ref 'EnvironmentSystemsManagerParametersPath'
+          - !Join
+            - ''
+            - - /
+              - !Ref 'AWS::StackName'
+        - ' as environment variables at launch. For example, if you create a parameter named '
+        - !Join
+          - /
+          - - !If
+              - HaveEnvironmentSystemsManagerParametersPath
+              - !Ref 'EnvironmentSystemsManagerParametersPath'
+              - !Join
+                - ''
+                - - /
+                  - !Ref 'AWS::StackName'
+            - IMGPROXY_KEY
+        - ', it will be loaded as the IMGPROXY_KEY environment variable.'
+        - ' If you change the parameter value, you need to restart the imgproxy service to pick up'
+        - ' the new value.'
