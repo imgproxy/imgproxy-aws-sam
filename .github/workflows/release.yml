@@ -34,7 +34,7 @@ jobs:
             > RELEASE_NOTES.txt
 
           echo "" >> RELEASE_NOTES.txt
-          echo "[![](assets/launch-stack.svg)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=imgproxy&templateURL=https://imgproxy-cf.s3.amazonaws.com/sam/${{ github.ref_name }}/template.yml)" >> RELEASE_NOTES.txt
+          echo "[![](assets/launch-stack.svg)](https://console.aws.amazon.com/cloudformation/home#/stacks/create/review?stackName=imgproxy&templateURL=https://imgproxy-cf.s3.amazonaws.com/sam/${{ github.ref_name }}/template.yml)" >> RELEASE_NOTES.txt
 
           # Write prerelease="true" env if tag name has any suffix after vMAJOR.MINOR.PATCH
           if [[ ${GITHUB_REF_NAME} =~ ^v[0-9]+\.[0-9]+\.[0-9]+.+ ]]; then
