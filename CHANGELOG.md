@@ -9,7 +9,7 @@
 
 ### Removed
 - Removed the `EnvironmentSecretARN` and `EnvironmentSecretVersionID` parameters.
-
+- Removed the `aws-marketplace:MeterUsage` policy.
 
 ## [0.1.0] - 2024-02-07
 ### Added

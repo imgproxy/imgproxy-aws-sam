@@ -225,12 +225,6 @@ Resources:
               - cloudwatch:PutMetricStream
             Resource:
               - '*'
-          - Sid: AwsMarketplace
-            Effect: Allow
-            Action:
-              - aws-marketplace:MeterUsage
-            Resource:
-              - '*'
           - Sid: SystemsManagerAccess
             Effect: Allow
             Action:
