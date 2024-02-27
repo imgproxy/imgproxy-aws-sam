@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.1] - 2024-02-28
+### Fixed
+- Fixed CloudFront Origin Shield region selection.
+
 ## [0.2.0] - 2024-02-26
 ### Added
 - Added `HowToConfigure` output.
