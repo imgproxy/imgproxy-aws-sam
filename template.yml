@@ -128,7 +128,7 @@ Metadata:
       PathPrefix:
         default: Path prefix (optional)
       CreateCloudFrontDistribution:
-        default: Create CloudForont distribution?
+        default: Create CloudFront distribution?
 
 Conditions:
   HaveFunctionName: !Not
