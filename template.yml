@@ -350,6 +350,7 @@ Resources:
     Properties:
       DistributionConfig:
         Enabled: true
+        HttpVersion: http2and3
         Origins:
           - DomainName: !Select
               - 2

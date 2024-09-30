@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.2] - 2024-09-30
+### Changed
+- Use HTTP/3 and HTTP/3 for CloudFront distributions.
+
 ## [0.2.1] - 2024-02-28
 ### Fixed
 - Fixed CloudFront Origin Shield region selection.
