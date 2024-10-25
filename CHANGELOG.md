@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.0] - 2024-10-25
+### Added
+- Added `Architecture` parameter.
+
 ## [0.2.2] - 2024-09-30
 ### Changed
 - Use HTTP/3 and HTTP/3 for CloudFront distributions.

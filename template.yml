@@ -12,6 +12,17 @@ Parameters:
     Description: >-
       The URI of the Docker image to use for the function.
       The image must be in an Amazon Elastic Container Registry (Amazon ECR) repository.
+  Architecture:
+    Type: String
+    Description: >-
+      !!!WARNING!!!: ML features do not work on ARM64 architecture due to Lambda environment
+      limitations. If you need ML features, either use AMD64 architecture or consider deploying
+      imgproxy on ECS or EKS.
+    Default: ARM64
+    AllowedValues:
+      - ARM64
+      - AMD64
+
   MemorySize:
     Type: Number
     Description: >-
@@ -88,6 +99,7 @@ Metadata:
         Parameters:
           - FunctionName
           - ImageUri
+          - Architecture
           - MemorySize
           - Timeout
       - Label:
@@ -111,6 +123,8 @@ Metadata:
         default: Function name
       ImageUri:
         default: Docker image
+      Architecture:
+        default: CPU architecture
       MemorySize:
         default: Memory size
       Timeout:
@@ -164,6 +178,11 @@ Conditions:
     - 'Yes'
 
 Mappings:
+  ArchMap:
+    ARM64:
+      Architecture: arm64
+    AMD64:
+      Architecture: x86_64
   OriginShieldRegionMap:
     # Regions with origin shield
     us-east-2:
@@ -212,7 +231,11 @@ Resources:
   ImgproxyFunction:
     Type: AWS::Serverless::Function
     Properties:
-      Architectures: [arm64]
+      Architectures:
+        - !FindInMap
+          - ArchMap
+          - !Ref 'Architecture'
+          - Architecture
       FunctionName: !If
         - HaveFunctionName
         - !Ref 'FunctionName'
